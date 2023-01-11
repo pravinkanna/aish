@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -11,6 +15,27 @@ import (
 )
 
 var cfgFile string
+
+type HttpRequest struct {
+	Model       string `json:"model"`
+	Prompt      string `json:"prompt"`
+	MaxTokens   int    `json:"max_tokens"`
+	Temperature int    `json:"temperature"`
+}
+type HttpResponse struct {
+	Id      string    `json:"id"`
+	Object  string    `json:"object"`
+	Created int       `json:"created"`
+	Model   string    `json:"model"`
+	Choices []Choices `json:"choices"`
+}
+
+type Choices struct {
+	Text         string `json:"text"`
+	Index        int    `json:"index"`
+	Logprobs     string `json:"logprobs"`
+	FinishReason string `json:"finish_reason"`
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -57,5 +82,33 @@ func runCmd(cmd *cobra.Command, args []string) error {
 }
 
 func generateSnippet(input string) string {
-	return "dummy \noutput"
+	endpoint := `https://api.openai.com/v1/completions`
+	bearer := "Bearer " + `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`
+	input = "# shell\n# " + input
+	httpRequest := HttpRequest{"code-davinci-002", input, 64, 0}
+	postBody, _ := json.Marshal(httpRequest)
+	requestBody := bytes.NewBuffer(postBody)
+	req, err := http.NewRequest("POST", endpoint, requestBody)
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("Authorization", bearer)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal("Error on response.\n[ERROR] -", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal("Error while reading the response bytes:", err)
+	}
+	var response HttpResponse
+	if err := json.Unmarshal([]byte(body), &response); err != nil {
+		log.Fatal(err)
+	}
+	return response.Choices[0].Text
 }
