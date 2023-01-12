@@ -56,7 +56,7 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.aish)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.aish/config.yaml)")
 	home, err := os.UserHomeDir()
 	cobra.CheckErr(err)
 	viper.AddConfigPath(home + `/.aish`)
@@ -84,10 +84,15 @@ func runCmd(cmd *cobra.Command, args []string) error {
 
 func generateSnippet(lang string, query string) string {
 	endpoint := `https://api.openai.com/v1/completions`
-	apiKey := viper.Get("api_key")
+	apiKey := viper.GetString("api_key")
+	model := viper.GetString("model")
+	maxTokens := viper.GetInt("max_tokens")
+	temperature := viper.GetInt("temperature")
+
 	bearer := fmt.Sprintf("Bearer %s", apiKey)
 	prompt := fmt.Sprintf("# %s\n# %s", lang, query)
-	httpRequest := HttpRequest{"code-davinci-002", prompt, 64, 0}
+
+	httpRequest := HttpRequest{model, prompt, maxTokens, temperature}
 	postBody, _ := json.Marshal(httpRequest)
 	requestBody := bytes.NewBuffer(postBody)
 	req, err := http.NewRequest("POST", endpoint, requestBody)
