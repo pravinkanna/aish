@@ -69,23 +69,25 @@ func init() {
 }
 
 func runCmd(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("please provide an input to generate code snippet")
+	if len(args) < 2 {
+		return fmt.Errorf("please provide language and query to generate code snippet")
 	}
 	if len(args) > 16 {
-		return fmt.Errorf("given input is too long")
+		return fmt.Errorf("given prompt is too long")
 	}
-	input := strings.Join(args[:], " ")
-	result := generateSnippet(input)
+	lang := args[0]
+	query := strings.Join(args[1:], " ")
+	result := generateSnippet(lang, query)
 	fmt.Println(result)
 	return nil
 }
 
-func generateSnippet(input string) string {
+func generateSnippet(lang string, query string) string {
 	endpoint := `https://api.openai.com/v1/completions`
-	bearer := "Bearer " + `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`
-	input = "# shell\n# " + input
-	httpRequest := HttpRequest{"code-davinci-002", input, 64, 0}
+	apiKey := viper.Get("api_key")
+	bearer := fmt.Sprintf("Bearer %s", apiKey)
+	prompt := fmt.Sprintf("# %s\n# %s", lang, query)
+	httpRequest := HttpRequest{"code-davinci-002", prompt, 64, 0}
 	postBody, _ := json.Marshal(httpRequest)
 	requestBody := bytes.NewBuffer(postBody)
 	req, err := http.NewRequest("POST", endpoint, requestBody)
@@ -105,6 +107,9 @@ func generateSnippet(input string) string {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatal("Error while reading the response bytes:", err)
+	}
+	if resp.StatusCode != 200 {
+		log.Fatal(string([]byte(body)))
 	}
 	var response HttpResponse
 	if err := json.Unmarshal([]byte(body), &response); err != nil {
